@@ -589,8 +589,8 @@ class ChatViewModel : ViewModel() {
         return try {
             val manuals = context.assets.list("manuals")?.toList() ?: emptyList()
             Json.encodeToString(ListSerializer(String.serializer()), manuals)
-        } catch () {
-            "错误: 无法读取说明书列表。"
+        } catch (e: Exception) {
+            "错误: 无法读取说明书列表，原因：${e.message}"
         }
     }
 
@@ -610,10 +610,16 @@ class ChatViewModel : ViewModel() {
                 "从 '$manualName' 中找到相关章节:\n\n${bestMatch.value}"
             } else {
                 // 没找到
-                "在 '$manualName' 中未找到关于 '$query' 的章节。可用的章节标题有: ${sections.keys.joinToString()}"
+                val availableTitles = if (sections.keys.isNotEmpty()) {
+                    sections.keys.joinToString()
+                } else {
+                    "无可用章节标题"
+                }
+                "在 '$manualName' 中未找到关于 '$query' 的章节。可用的章节标题有: $availableTitles"
             }
-        } catch () {
-            "错误: 无法读取或解析说明书 '$manualName'。"
+        } catch (e: Exception) {
+            "错误: 无法读取或解析说明书 '$manualName'，原因: ${e.message}"
         }
     }
+
 }

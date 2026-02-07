@@ -17,7 +17,7 @@ import android.app.Instrumentation
 import android.graphics.Point
 import android.view.Display
 import android.view.WindowManager
-
+import android.accessibilityservice.GestureDescription
 /**
  * 存放需要特殊权限的系统级工具
  */

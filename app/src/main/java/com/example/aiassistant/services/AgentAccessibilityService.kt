@@ -71,5 +71,51 @@ class AgentAccessibilityService : AccessibilityService() {
         return rootInActiveWindow
     }
 
+    /**
+     * 根据文本查找可访问性节点
+     * @param text 要查找的文本
+     * @return 找到的第一个节点，如果未找到返回null
+     */
+    fun findAccessibilityNodeInfoByText(text: String): AccessibilityNodeInfo? {
+        val rootNode = rootInActiveWindow ?: return null
+        val nodes = rootNode.findAccessibilityNodeInfosByText(text)
+        return if (nodes != null && nodes.isNotEmpty()) {
+            nodes[0]
+        } else {
+            null
+        }
+    }
+
+    /**
+     * 执行节点点击操作
+     * @param nodeInfo 要点击的节点
+     * @return 操作是否成功
+     */
+    fun performClick(nodeInfo: AccessibilityNodeInfo): Boolean {
+        return nodeInfo.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+    }
+
+    /**
+     * 执行手势滑动
+     * @param startX 起始X坐标
+     * @param startY 起始Y坐标
+     * @param endX 结束X坐标
+     * @param endY 结束Y坐标
+     * @param duration 滑动持续时间（毫秒）
+     * @return 操作是否成功
+     */
+    fun performGesture(startX: Int, startY: Int, endX: Int, endY: Int, duration: Int): Boolean {
+        val path = Path().apply {
+            moveTo(startX.toFloat(), startY.toFloat())
+            lineTo(endX.toFloat(), endY.toFloat())
+        }
+
+        val gesture = GestureDescription.Builder()
+            .addStroke(GestureDescription.StrokeDescription(path, 0, duration.toLong()))
+            .build()
+
+        return dispatchGesture(gesture, null, null)
+    }
+
 
 }
