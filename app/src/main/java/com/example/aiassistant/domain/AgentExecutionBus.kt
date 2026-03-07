@@ -2,6 +2,8 @@ package com.example.aiassistant.domain
 
 import com.example.aiassistant.data.ChatMessage
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import android.graphics.Rect
 
 /**
  * 一个全局单例的事件总线，用于在UI层 (MainActivity) 和后台服务 (AgentForegroundService) 之间安全地传递消息。
@@ -20,4 +22,14 @@ object AgentExecutionBus {
      * replay = 1 会缓存最后一次发出的列表，确保新的订阅者（如屏幕旋转后的Activity）能立即获取当前对话状态。
      */
     val conversationUpdates = MutableSharedFlow<List<ChatMessage>>(replay = 1)
+
+    /**
+     * 标记当前是否处于自动化流程中，用于控制悬浮窗交互模式。
+     */
+    val automationActive = MutableStateFlow(false)
+
+    /**
+     * 悬浮窗在屏幕上的位置范围（用于自动化手势避让）。
+     */
+    val overlayBounds = MutableStateFlow<Rect?>(null)
 }

@@ -1,4 +1,18 @@
 <resources>
     <string name="app_name">AIAssistant</string>
     <string name="accessibility_service_description">AI 助手代理服务，用于执行自动化操作</string>
+    <string name="exit_app">退出</string>
+    <string name="exit_title">退出应用</string>
+    <string name="exit_message">确定要退出并结束进程吗？</string>
+    <string name="exit_confirm">退出</string>
+    <string name="exit_cancel">取消</string>
+    <string name="floating_chat_title">AI 回答</string>
+    <string name="floating_chat_close">关闭悬浮窗</string>
+    <string name="floating_chat_empty">暂无回复</string>
+    <string name="floating_chat_stop">停止</string>
+    <string name="send">发送</string>
+    <string name="overlay_permission_title">开启悬浮窗权限</string>
+    <string name="overlay_permission_message">需要悬浮窗权限才能在自动化操作时显示AI回答。</string>
+    <string name="overlay_permission_go">去授权</string>
+    <string name="open_accessibility">无障碍</string>
 </resources>

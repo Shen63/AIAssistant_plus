@@ -6,10 +6,14 @@ import android.database.ContentObserver
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.Process
 import android.provider.Settings
 import android.text.TextUtils
+import android.net.Uri
+import android.os.Build
 import android.view.View
 import android.view.inputmethod.EditorInfo
+import android.view.KeyEvent
 import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageButton
@@ -41,6 +45,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var messageInput: EditText
     private lateinit var sendButton: ImageButton
     private lateinit var settingsButton: ImageView
+    private lateinit var exitButton: Button
+    private lateinit var accessibilityButton: Button
     private lateinit var assistantLayout: ConstraintLayout
     private lateinit var rootContainer: View
     // --- 数据和适配器 ---
@@ -65,6 +71,7 @@ class MainActivity : AppCompatActivity() {
         setupKeyboardListener()
         observeAgentBus()
         setupAccessibilityObserver()
+        requestOverlayPermissionIfNeeded()
         AppConfig.init(this)
     }
 
@@ -80,6 +87,8 @@ class MainActivity : AppCompatActivity() {
         messageInput = findViewById(R.id.message_input)
         sendButton = findViewById(R.id.send_button)
         settingsButton = findViewById(R.id.settings_button)
+        exitButton = findViewById(R.id.exit_button)
+        accessibilityButton = findViewById(R.id.accessibility_button)
     }
 
     private fun setupRecyclerView() {
@@ -96,6 +105,14 @@ class MainActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        exitButton.setOnClickListener {
+            showExitDialog()
+        }
+
+        accessibilityButton.setOnClickListener {
+            AccessibilityUtils.openAccessibilitySettings(this)
+        }
+
         sendButton.setOnClickListener {
             val userInput = messageInput.text.toString().trim()
             if (userInput.isNotBlank()) {
@@ -106,13 +123,31 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        messageInput.setOnEditorActionListener { _, actionId, _ ->
-            if (actionId == EditorInfo.IME_ACTION_SEND) {
+        messageInput.setOnEditorActionListener { _, actionId, event ->
+            val isEnterKey = event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN
+            if (actionId == EditorInfo.IME_ACTION_SEND || isEnterKey) {
                 sendButton.performClick()
                 return@setOnEditorActionListener true
             }
             return@setOnEditorActionListener false
         }
+    }
+
+    private fun showExitDialog() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.exit_title)
+            .setMessage(R.string.exit_message)
+            .setPositiveButton(R.string.exit_confirm) { _, _ ->
+                exitApp()
+            }
+            .setNegativeButton(R.string.exit_cancel, null)
+            .show()
+    }
+
+    private fun exitApp() {
+        stopService(Intent(this, AgentForegroundService::class.java))
+        finishAffinity()
+        Process.killProcess(Process.myPid())
     }
 
 
@@ -159,6 +194,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        requestOverlayPermissionIfNeeded()
         if (!isA11yEnabled()) {
             showEnableAccessibilityDialog()
         } else {
@@ -173,6 +209,10 @@ class MainActivity : AppCompatActivity() {
             contentResolver.unregisterContentObserver(it)
         }
         accessibilityDialog?.dismiss()
+    }
+
+    override fun onBackPressed() {
+        moveTaskToBack(true)
     }
 
     //用于检验无障碍服务是否开启
@@ -222,6 +262,35 @@ class MainActivity : AppCompatActivity() {
             accessibilityDialog = null
 
         }
+    }
+
+    private fun requestOverlayPermissionIfNeeded() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+            refreshOverlay()
+            return
+        }
+        if (Settings.canDrawOverlays(this)) {
+            refreshOverlay()
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle(R.string.overlay_permission_title)
+            .setMessage(R.string.overlay_permission_message)
+            .setPositiveButton(R.string.overlay_permission_go) { _, _ ->
+                val intent = Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                )
+                startActivity(intent)
+            }
+            .setNegativeButton(R.string.exit_cancel, null)
+            .show()
+    }
+
+    private fun refreshOverlay() {
+        val intent = Intent(this, AgentForegroundService::class.java)
+        intent.action = AgentForegroundService.ACTION_REFRESH_OVERLAY
+        startService(intent)
     }
 }
 

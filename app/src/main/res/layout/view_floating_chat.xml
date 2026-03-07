@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/floating_chat_root"
+    android:layout_width="280dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:background="@drawable/bg_floating_chat"
+    android:padding="8dp">
+
+    <LinearLayout
+        android:id="@+id/floating_chat_header"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
+        android:padding="4dp">
+
+        <TextView
+            android:id="@+id/floating_chat_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/floating_chat_title"
+            android:textColor="@android:color/black"
+            android:textStyle="bold"
+            android:textSize="14sp" />
+
+        <Button
+            android:id="@+id/floating_chat_stop"
+            android:layout_width="wrap_content"
+            android:layout_height="28dp"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_button_gray"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp"
+            android:text="@string/floating_chat_stop"
+            android:textSize="12sp" />
+
+        <ImageView
+            android:id="@+id/floating_chat_close"
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            android:contentDescription="@string/floating_chat_close" />
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/floating_chat_scroll"
+        android:layout_width="match_parent"
+        android:layout_height="160dp"
+        android:fillViewport="true">
+
+        <TextView
+            android:id="@+id/floating_chat_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@android:color/black"
+            android:textSize="13sp"
+            android:lineSpacingExtra="2dp"
+            android:text="" />
+    </ScrollView>
+
+    <LinearLayout
+        android:id="@+id/floating_chat_input_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingTop="6dp">
+
+        <EditText
+            android:id="@+id/floating_chat_input"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_edit_text"
+            android:hint="输入消息..."
+            android:imeOptions="actionSend"
+            android:inputType="text"
+            android:maxLines="1"
+            android:padding="10dp"
+            android:singleLine="true" />
+
+        <ImageButton
+            android:id="@+id/floating_chat_send"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/bg_send_button"
+            android:contentDescription="@string/send"
+            android:src="@drawable/ic_send" />
+    </LinearLayout>
+</LinearLayout>

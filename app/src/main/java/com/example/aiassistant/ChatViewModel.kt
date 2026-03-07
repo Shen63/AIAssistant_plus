@@ -20,7 +20,9 @@ import kotlinx.coroutines.launch
 import android.content.Context
 import com.example.aiassistant.data.ClickParams
 import com.example.aiassistant.data.TextParams
+import com.example.aiassistant.data.ScrollParams
 import com.example.aiassistant.domain.SystemTools
+import com.example.aiassistant.domain.AgentExecutionBus
 import kotlinx.serialization.json.Json
 import java.io.IOException
 import kotlinx.serialization.builtins.*
@@ -31,6 +33,7 @@ import com.example.aiassistant.data.FunctionProperty
 import androidx.preference.PreferenceManager
 
 import com.example.aiassistant.config.AppConfig
+import kotlinx.coroutines.Job
 
 class ChatViewModel : ViewModel() {
 
@@ -45,6 +48,9 @@ class ChatViewModel : ViewModel() {
 
     // 4. 维护完整的对话历史，包括用户、助手和工具的交互
     private val conversationHistory = mutableListOf<com.example.aiassistant.data.ChatMessage>()
+
+    // 当前会话的执行任务，用于支持手动停止
+    private var activeJob: Job? = null
 
     // 5. 定义模型可用的工具列表
     private val availableTools by lazy {
@@ -96,6 +102,32 @@ class ChatViewModel : ViewModel() {
                         )
                     ),
                     required = listOf("x", "y")
+                )
+            )
+        ),
+
+        Tool(
+            type = "function",
+            function = FunctionDescription(
+                name = "scroll_screen",
+                description = "模拟在当前前台屏幕进行上下左右滑动。方向支持 up/down/left/right，可选距离和时长。",
+                parameters = FunctionParameters(
+                    type = "object",
+                    properties = mapOf(
+                        "direction" to ParameterProperty(
+                            type = "string",
+                            description = "滑动方向：up/down/left/right"
+                        ),
+                        "distance" to ParameterProperty(
+                            type = "integer",
+                            description = "滑动距离（像素），可选，默认 800"
+                        ),
+                        "duration" to ParameterProperty(
+                            type = "integer",
+                            description = "滑动持续时间（毫秒），可选，默认 300"
+                        )
+                    ),
+                    required = listOf("direction")
                 )
             )
         ),
@@ -267,7 +299,11 @@ class ChatViewModel : ViewModel() {
         val systemMessage = com.example.aiassistant.data.ChatMessage(
             role = "system",
             content = """
-            你是一个名叫“小智”的个人助理。
+            你是一个名叫“小智”的个人助理，所有问题都必须先走工具流程查询后再回答。
+            不要直接回答任何问题，必须先调用合适的工具获取信息或执行操作，再基于工具结果进行回复。
+            当用户意图模糊但可能涉及APP操作时，你可以主动补全意图并执行必要的APP操作，不必等待用户逐步确认。
+            未经用户明确要求，禁止调用 `perform_back_press`，并避免在主界面触发返回操作。
+            当用户意图指向某类任务（如查攻略、订票、看天气、查路线等）但未指定APP时，先调用 `get_installed_apps`，在结果中选择最匹配的APP并直接 `launch_app`，无需再次询问。
 
             你的任务是
             - 帮助用户查询各种APP的操作说明书。
@@ -409,9 +445,26 @@ class ChatViewModel : ViewModel() {
         _apiMessages.value = conversationHistory.toList()
 
         // 启动一个后台协程来处理与模型的交互，避免阻塞主线程
-        viewModelScope.launch {
+        AgentExecutionBus.automationActive.value = true
+        activeJob = viewModelScope.launch {
             processConversation(context) // <--- 修改点
         }
+        activeJob?.invokeOnCompletion {
+            AgentExecutionBus.automationActive.value = false
+        }
+    }
+
+    fun stopCurrentWork() {
+        activeJob?.cancel()
+        activeJob = null
+        AgentExecutionBus.automationActive.value = false
+        val assistantMessage = com.example.aiassistant.data.ChatMessage(
+            role = "assistant",
+            content = "已停止当前自动化流程。",
+            toolCalls = null
+        )
+        conversationHistory.add(assistantMessage)
+        _apiMessages.value = conversationHistory.toList()
     }
 
     /**
@@ -420,7 +473,7 @@ class ChatViewModel : ViewModel() {
     private suspend fun processConversation(context: Context) {
         val modelName = AppConfig.modelName
         val request = ChatCompletionRequest(
-            model = modelName ?: "qwen3-235b-a22b-instruct-2507",
+            model = modelName ?: "deepseek/deepseek-v3.2-251201",
             messages = conversationHistory, // 发送完整对话历史
             tools = availableTools // 告知模型它能使用哪些工具
         )
@@ -490,6 +543,12 @@ class ChatViewModel : ViewModel() {
                 "input_text" -> {
                     val params = json.decodeFromString<TextParams>(toolCall.function.arguments)
                     SystemTools.inputText(params.text)
+                }
+                "scroll_screen" -> {
+                    val params = json.decodeFromString<ScrollParams>(toolCall.function.arguments)
+                    val distance = if (params.distance > 0) params.distance else 800
+                    val duration = if (params.duration > 0) params.duration else 300
+                    SystemTools.scrollScreen(params.direction, distance, duration)
                 }
                 "list_available_manuals" -> {
                     listManualsFromAssets(context)

@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
+import android.provider.Settings
 import androidx.core.app.NotificationCompat
 import com.example.aiassistant.R
 import com.example.aiassistant.domain.AgentExecutionBus
@@ -17,6 +18,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class AgentForegroundService : Service() {
 
@@ -25,10 +27,12 @@ class AgentForegroundService : Service() {
 
     // 在服务内部持有ViewModel实例，使其生命周期与服务同步
     private lateinit var viewModel: ChatViewModel
+    private var floatingOverlay: FloatingChatOverlay? = null
 
     companion object {
         private const val NOTIFICATION_ID = 1
         private const val CHANNEL_ID = "AgentServiceChannel"
+        const val ACTION_REFRESH_OVERLAY = "com.example.aiassistant.action.REFRESH_OVERLAY"
     }
 
     override fun onCreate() {
@@ -48,11 +52,24 @@ class AgentForegroundService : Service() {
         serviceScope.launch {
             viewModel.apiMessages.collect { messages ->
                 AgentExecutionBus.conversationUpdates.tryEmit(messages)
+                val assistantMessages = messages
+                    .filter { it.role == "assistant" }
+                    .mapNotNull { it.content }
+                    .takeLast(8)
+                withContext(Dispatchers.Main) {
+                    floatingOverlay?.updateMessages(assistantMessages)
+                }
             }
         }
+
+
+        ensureOverlay()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_REFRESH_OVERLAY) {
+            ensureOverlay()
+        }
         createNotificationChannel()
         val notification = createNotification()
         startForeground(NOTIFICATION_ID, notification)
@@ -64,6 +81,7 @@ class AgentForegroundService : Service() {
         super.onDestroy()
         // 当服务被销毁时，取消所有正在运行的协程，防止内存泄漏
         serviceScope.cancel()
+        floatingOverlay?.dismiss()
     }
 
     override fun onBind(intent: Intent?): IBinder? {
@@ -89,5 +107,19 @@ class AgentForegroundService : Service() {
             .setContentText("智能助理服务在后台为您待命")
             .setSmallIcon(R.mipmap.ic_launcher) // 请确保您有这个图标资源
             .build()
+    }
+
+    private fun ensureOverlay() {
+        if (floatingOverlay != null) return
+        if (!Settings.canDrawOverlays(this)) return
+        floatingOverlay = FloatingChatOverlay(
+            this,
+            onStop = { viewModel.stopCurrentWork() },
+            onBoundsChanged = { bounds ->
+                AgentExecutionBus.overlayBounds.value = bounds
+            }
+        )
+        floatingOverlay?.show()
+        floatingOverlay?.setMessageScrollable(true)
     }
 }

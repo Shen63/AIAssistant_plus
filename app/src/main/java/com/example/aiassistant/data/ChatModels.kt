@@ -26,7 +26,7 @@ data class FunctionCall(
 
 @Serializable
 data class ChatCompletionRequest(
-    val model: String = "qwen-plus",
+    val model: String = "deepseek/deepseek-v3.2-251201",
     val messages: List<ChatMessage>,
     val tools: List<Tool>? = null,
     @SerialName("tool_choice") val toolChoice: String = "auto"
@@ -78,6 +78,13 @@ data class TextParams(val text: String)
 
 @Serializable
 data class LaunchAppParams(val packageName: String)
+
+@Serializable
+data class ScrollParams(
+    val direction: String,
+    val distance: Int = 800,
+    val duration: Int = 300
+)
 
 @Serializable
 data class FunctionProperty(

@@ -13,7 +13,7 @@ import java.util.concurrent.TimeUnit
 
 
 object RetrofitClient {
-    private const val BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/"
+    private const val BASE_URL = "https://api.qnaigc.com/v1/"
 
     // 配置Json解析器，忽略未知的key
     private val json = Json {

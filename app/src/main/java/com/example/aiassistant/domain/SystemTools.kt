@@ -18,6 +18,8 @@ import android.graphics.Point
 import android.view.Display
 import android.view.WindowManager
 import android.accessibilityservice.GestureDescription
+import android.graphics.Rect
+import com.example.aiassistant.domain.AgentExecutionBus
 /**
  * 存放需要特殊权限的系统级工具
  */
@@ -121,8 +123,15 @@ object SystemTools {
         if (duration <= 0) {
             return "错误：执行时间必须为正数"
         }
+        val normalizedDirection = when (direction.trim().lowercase()) {
+            "up", "上", "上滑", "向上", "向上滑" -> "up"
+            "down", "下", "下滑", "向下", "向下滑" -> "down"
+            "left", "左", "左滑", "向左", "向左滑" -> "left"
+            "right", "右", "右滑", "向右", "向右滑" -> "right"
+            else -> direction.trim().lowercase()
+        }
         val validDirections = listOf("up", "down", "left", "right")
-        if (direction !in validDirections) {
+        if (normalizedDirection !in validDirections) {
             return "错误：方向必须是以下值之一：${validDirections.joinToString()}"
         }
 
@@ -140,34 +149,44 @@ object SystemTools {
             val screenWidth = size.x
             val screenHeight = size.y
 
+            val marginX = (screenWidth * 0.1f).toInt().coerceAtLeast(1)
+            val marginY = (screenHeight * 0.1f).toInt().coerceAtLeast(1)
+            val maxVertical = (screenHeight * 0.6f).toInt()
+            val maxHorizontal = (screenWidth * 0.6f).toInt()
+            val overlayBounds = AgentExecutionBus.overlayBounds.value
+
             // 自适应边界：根据方向限制最大滑动距离
-            val actualDistance = when (direction) {
-                "up", "down" -> if (distance > screenHeight) (screenHeight * 0.8).toInt() else distance
-                "left", "right" -> if (distance > screenWidth) (screenWidth * 0.8).toInt() else distance
+            val actualDistance = when (normalizedDirection) {
+                "up", "down" -> distance.coerceAtMost(maxVertical)
+                "left", "right" -> distance.coerceAtMost(maxHorizontal)
                 else -> distance
             }
 
             // 根据方向确定起始和结束坐标
-            val coordinates = when (direction) {
+            val coordinates = when (normalizedDirection) {
                 "up" -> {
-                    val x = screenWidth / 2
-                    val y = (screenHeight * 0.9).toInt()
-                    arrayOf(x, y, x, y - actualDistance)
+                    val x = pickSafeX(screenWidth, marginX, overlayBounds)
+                    val startY = (screenHeight - marginY).coerceAtLeast(marginY + 1)
+                    val endY = (startY - actualDistance).coerceAtLeast(marginY)
+                    arrayOf(x, startY, x, endY)
                 }
                 "down" -> {
-                    val x = screenWidth / 2
-                    val y = (screenHeight * 0.1).toInt()
-                    arrayOf(x, y, x, y + actualDistance)
+                    val x = pickSafeX(screenWidth, marginX, overlayBounds)
+                    val startY = marginY
+                    val endY = (startY + actualDistance).coerceAtMost(screenHeight - marginY)
+                    arrayOf(x, startY, x, endY)
                 }
                 "left" -> {
-                    val x = (screenWidth * 0.9).toInt()
-                    val y = screenHeight / 2
-                    arrayOf(x, y, x - actualDistance, y)
+                    val startX = (screenWidth - marginX).coerceAtLeast(marginX + 1)
+                    val y = pickSafeY(screenHeight, marginY, overlayBounds)
+                    val endX = (startX - actualDistance).coerceAtLeast(marginX)
+                    arrayOf(startX, y, endX, y)
                 }
                 "right" -> {
-                    val x = (screenWidth * 0.1).toInt()
-                    val y = screenHeight / 2
-                    arrayOf(x, y, x + actualDistance, y)
+                    val startX = marginX
+                    val y = pickSafeY(screenHeight, marginY, overlayBounds)
+                    val endX = (startX + actualDistance).coerceAtMost(screenWidth - marginX)
+                    arrayOf(startX, y, endX, y)
                 }
                 else -> return "错误：无效的方向"
             }
@@ -180,13 +199,47 @@ object SystemTools {
             // 使用无障碍服务执行滑动
             val success = service.performGesture(startX, startY, endX, endY, duration)
             return if (success) {
-                "成功${direction}滑屏幕，实际滑动距离：$actualDistance 像素，耗时：$duration 毫秒"
+                "成功${normalizedDirection}滑屏幕，实际滑动距离：$actualDistance 像素，耗时：$duration 毫秒"
             } else {
-                "${direction}滑失败：无障碍服务无法执行手势"
+                "${normalizedDirection}滑失败：无障碍服务无法执行手势"
             }
 
         } catch (e: Exception) {
-            return "${direction}滑失败：${e.message ?: "未知错误"}"
+            return "${normalizedDirection}滑失败：${e.message ?: "未知错误"}"
+        }
+    }
+
+    private fun pickSafeX(screenWidth: Int, marginX: Int, overlay: Rect?): Int {
+        if (overlay == null) return screenWidth / 2
+        val leftRangeStart = marginX
+        val leftRangeEnd = (overlay.left - marginX).coerceAtLeast(leftRangeStart)
+        val rightRangeStart = (overlay.right + marginX).coerceAtMost(screenWidth - marginX)
+        val rightRangeEnd = (screenWidth - marginX).coerceAtLeast(rightRangeStart)
+
+        val leftWidth = leftRangeEnd - leftRangeStart
+        val rightWidth = rightRangeEnd - rightRangeStart
+
+        return when {
+            rightWidth > leftWidth && rightWidth > 0 -> (rightRangeStart + rightRangeEnd) / 2
+            leftWidth > 0 -> (leftRangeStart + leftRangeEnd) / 2
+            else -> screenWidth / 2
+        }
+    }
+
+    private fun pickSafeY(screenHeight: Int, marginY: Int, overlay: Rect?): Int {
+        if (overlay == null) return screenHeight / 2
+        val topRangeStart = marginY
+        val topRangeEnd = (overlay.top - marginY).coerceAtLeast(topRangeStart)
+        val bottomRangeStart = (overlay.bottom + marginY).coerceAtMost(screenHeight - marginY)
+        val bottomRangeEnd = (screenHeight - marginY).coerceAtLeast(bottomRangeStart)
+
+        val topHeight = topRangeEnd - topRangeStart
+        val bottomHeight = bottomRangeEnd - bottomRangeStart
+
+        return when {
+            bottomHeight > topHeight && bottomHeight > 0 -> (bottomRangeStart + bottomRangeEnd) / 2
+            topHeight > 0 -> (topRangeStart + topRangeEnd) / 2
+            else -> screenHeight / 2
         }
     }
 }

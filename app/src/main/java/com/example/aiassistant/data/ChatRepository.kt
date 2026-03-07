@@ -6,13 +6,12 @@ import com.example.aiassistant.config.AppConfig
 //负责网络层
 class ChatRepository {
     private val apiService = RetrofitClient.instance
-
-
-    private val apiKey =  AppConfig.apiKey
+    private val apiKey = AppConfig.apiKey
 
     suspend fun getCompletion(request: ChatCompletionRequest): Result<ChatCompletionResponse> {
         return try {
-            val response = apiService.createChatCompletion(apiKey, request)
+            val authHeader = if (apiKey.startsWith("Bearer ")) apiKey else "Bearer $apiKey"
+            val response = apiService.createChatCompletion(authHeader, request)
             Result.success(response)
         } catch (e: Exception) {
             // 捕获网络或解析异常
